@@ -1,27 +1,40 @@
+
 # 🎬 MovieBot
 
-A Telegram movie and TV-show bot powered by **TMDB** and **python-telegram-bot v20+**.
+Telegram movie and TV show bot powered by TMDB.
 
-MovieBot lets users search for movies and TV shows, browse seasons and episodes, and access watch links directly from Telegram.
+## Features
 
-## ✨ Features
+- 🎬 Search and post movies
+- 📺 Search and post TV shows
+- 👻 Top 3 Horror TV shows
+- 📊 Admin statistics
+- 👥 Recent users
+- ⚙️ Channel settings
+- 🆔 Multiple authorized admin IDs
+- ⏹️ Maintenance mode
+- 🔐 Admin-only controls
+- 🎞️ TMDB movie and TV metadata
+- 📢 Automatic posting to configured Telegram channel
 
-### 👤 User Features
+## Admin Panel
 
-- `/start` welcome flow
-- Telegram channel membership verification
-- Join channel + **Done** verification button
-- Movie search
-- TV show search
-- Movie details
-- TV show seasons
-- Episode selection
-- Pagination for search results
-- Watch Now buttons
-- Back to Seasons navigation
-- Back buttons throughout the interface
-- TMDB posters and metadata
+The admin panel includes:
 
-### 🛠️ Admin Panel
+- 📊 Statistics
+- 👥 Recent Users
+- 🎬 Post Movie
+- 📺 Post TV Show
+- 👻 Top 3 Horror
+- ⚙️ Channel Settings
+- 🆔 Admin ID
+- ⏹️ Maintenance
+- ⬅️ Back navigation
 
-Administrators can access the admin panel with:
+## Commands
+
+### User
+
+```text
+/start
+/search
