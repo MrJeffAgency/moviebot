@@ -2,7 +2,7 @@ import html
 import requests
 
 from telegram import (
-    Update,
+    InlineKeyboardMarkup,
 )
 
 from telegram.ext import (
@@ -19,10 +19,12 @@ import keyboards as kb
 
 from config import (
     ADMIN_IDS,
+
     TMDB_API_KEY,
     TMDB_BASE_URL,
     TMDB_HEADERS,
     TMDB_IMAGE_BASE,
+
     BRAVE_PLAY_STORE_URL,
     CHANNEL_ID,
 )
@@ -40,10 +42,22 @@ def admin_only(user_id):
 # TMDB
 # ============================================================
 
-def tmdb_get(endpoint, params=None):
-    request_params = dict(params or {})
+def tmdb_get(
+    endpoint,
+    params=None,
+):
+    if not TMDB_API_KEY:
+        raise RuntimeError(
+            "TMDB_API_KEY is not configured."
+        )
 
-    request_params["api_key"] = TMDB_API_KEY
+    request_params = dict(
+        params or {}
+    )
+
+    request_params["api_key"] = (
+        TMDB_API_KEY
+    )
 
     response = requests.get(
         f"{TMDB_BASE_URL}{endpoint}",
@@ -76,25 +90,62 @@ def year(item):
         or ""
     )
 
-    return date[:4] if date else "N/A"
+    return (
+        date[:4]
+        if date
+        else "N/A"
+    )
 
 
 def poster(item):
-    path = item.get("poster_path")
+    path = item.get(
+        "poster_path"
+    )
 
     if not path:
         return None
 
-    return f"{TMDB_IMAGE_BASE}{path}"
+    return (
+        f"{TMDB_IMAGE_BASE}{path}"
+    )
 
 
-def watch_url(item, media_type):
-    item_id = item.get("id")
+def rating(item):
+    try:
+        return float(
+            item.get(
+                "vote_average",
+                0,
+            ) or 0
+        )
+    except (
+        TypeError,
+        ValueError,
+    ):
+        return 0.0
+
+
+def watch_url(
+    item,
+    media_type,
+):
+    item_id = item.get(
+        "id"
+    )
+
+    if not item_id:
+        return None
 
     if media_type == "tv":
-        return f"https://vidsrc.to/embed/tv/{item_id}"
+        return (
+            f"https://vidsrc.to/embed/tv/"
+            f"{item_id}"
+        )
 
-    return f"https://vidsrc.to/embed/movie/{item_id}"
+    return (
+        f"https://vidsrc.to/embed/movie/"
+        f"{item_id}"
+    )
 
 
 # ============================================================
@@ -124,6 +175,7 @@ async def show_admin_panel(
             parse_mode="HTML",
             reply_markup=markup,
         )
+
     else:
         await update.effective_message.reply_text(
             text,
@@ -133,7 +185,7 @@ async def show_admin_panel(
 
 
 # ============================================================
-# /admin
+# /ADMIN
 # ============================================================
 
 async def admin_command(
@@ -142,7 +194,9 @@ async def admin_command(
 ):
     user = update.effective_user
 
-    if not user or not admin_only(user.id):
+    if not user or not admin_only(
+        user.id
+    ):
         await update.effective_message.reply_text(
             "🚫 <b>Access Denied</b>",
             parse_mode="HTML",
@@ -169,7 +223,9 @@ async def maintenance_callback(
 
     user = update.effective_user
 
-    if not user or not admin_only(user.id):
+    if not user or not admin_only(
+        user.id
+    ):
         return
 
     new_state = not db.is_maintenance()
@@ -211,7 +267,9 @@ async def statistics_callback(
 
     user = update.effective_user
 
-    if not user or not admin_only(user.id):
+    if not user or not admin_only(
+        user.id
+    ):
         return
 
     users = db.get_user_count()
@@ -227,7 +285,7 @@ async def statistics_callback(
         "📊 <b>Bot Statistics</b>\n\n"
         f"👥 Total Users: <b>{users}</b>\n"
         f"🔎 Total Searches: <b>{searches}</b>\n"
-        f"🔧 Maintenance: <b>{maintenance}</b>\n"
+        f"🔧 Maintenance: <b>{maintenance}</b>"
     )
 
     await query.edit_message_text(
@@ -251,7 +309,9 @@ async def recent_users_callback(
 
     user = update.effective_user
 
-    if not user or not admin_only(user.id):
+    if not user or not admin_only(
+        user.id
+    ):
         return
 
     users = db.get_recent_users(
@@ -292,11 +352,13 @@ async def recent_users_callback(
                 )
 
             lines.append(
-                f"• <b>{html.escape(display_name)}</b>\n"
+                f"• <b>{html.escape(str(display_name))}</b>\n"
                 f"  ID: <code>{user_id}</code>"
             )
 
-        text = "\n".join(lines)
+        text = "\n".join(
+            lines
+        )
 
     await query.edit_message_text(
         text,
@@ -319,18 +381,27 @@ async def admin_id_callback(
 
     user = update.effective_user
 
-    if not user or not admin_only(user.id):
+    if not user or not admin_only(
+        user.id
+    ):
         return
 
     ids = "\n".join(
         f"• <code>{x}</code>"
-        for x in ADMIN_IDS
+        for x in sorted(
+            ADMIN_IDS
+        )
     )
+
+    if not ids:
+        ids = (
+            "⚠️ No ADMIN_IDS configured."
+        )
 
     await query.edit_message_text(
         "🆔 <b>Configured Admin IDs</b>\n\n"
         f"{ids}\n\n"
-        f"Your ID:\n"
+        "Your ID:\n"
         f"<code>{user.id}</code>",
         parse_mode="HTML",
         reply_markup=kb.back_admin(),
@@ -351,7 +422,9 @@ async def channel_settings_callback(
 
     user = update.effective_user
 
-    if not user or not admin_only(user.id):
+    if not user or not admin_only(
+        user.id
+    ):
         return
 
     configured = db.get_channel_id()
@@ -359,12 +432,15 @@ async def channel_settings_callback(
     if not configured:
         configured = CHANNEL_ID
 
+    if not configured:
+        configured = "Not configured"
+
     text = (
         "⚙️ <b>Channel Settings</b>\n\n"
-        f"Channel ID:\n"
-        f"<code>{html.escape(str(configured or 'Not configured'))}</code>\n\n"
+        "Channel ID:\n"
+        f"<code>{html.escape(str(configured))}</code>\n\n"
         "The channel ID is normally configured "
-        "in your .env/config.py."
+        "in your .env file."
     )
 
     await query.edit_message_text(
@@ -388,7 +464,9 @@ async def post_movie_callback(
 
     user = update.effective_user
 
-    if not user or not admin_only(user.id):
+    if not user or not admin_only(
+        user.id
+    ):
         return
 
     context.user_data[
@@ -419,7 +497,9 @@ async def post_tv_callback(
 
     user = update.effective_user
 
-    if not user or not admin_only(user.id):
+    if not user or not admin_only(
+        user.id
+    ):
         return
 
     context.user_data[
@@ -437,7 +517,34 @@ async def post_tv_callback(
 
 
 # ============================================================
-# SEND POST
+# ADMIN POST MENU
+# ============================================================
+
+async def admin_post_menu_callback(
+    update,
+    context,
+):
+    query = update.callback_query
+
+    await query.answer()
+
+    user = update.effective_user
+
+    if not user or not admin_only(
+        user.id
+    ):
+        return
+
+    await query.edit_message_text(
+        "📢 <b>Post Content</b>\n\n"
+        "Choose what you want to post.",
+        parse_mode="HTML",
+        reply_markup=kb.admin_post_menu(),
+    )
+
+
+# ============================================================
+# SEND CHANNEL POST
 # ============================================================
 
 async def send_channel_post(
@@ -455,13 +562,16 @@ async def send_channel_post(
             "CHANNEL_ID is not configured."
         )
 
-    item_title = title(item)
+    item_title = title(
+        item
+    )
 
-    item_year = year(item)
+    item_year = year(
+        item
+    )
 
-    rating = item.get(
-        "vote_average",
-        0,
+    item_rating = rating(
+        item
     )
 
     overview = (
@@ -469,20 +579,35 @@ async def send_channel_post(
         or "No description available."
     )
 
+    overview = overview.strip()
+
     if len(overview) > 500:
-        overview = overview[:497] + "..."
+        overview = (
+            overview[:497]
+            + "..."
+        )
 
     url = watch_url(
         item,
         media_type,
     )
 
+    if not url:
+        raise RuntimeError(
+            "Could not create watch URL."
+        )
+
+    item_type = (
+        "TV Show"
+        if media_type == "tv"
+        else "Movie"
+    )
+
     caption = (
         f"🎬 <b>{html.escape(item_title)}</b>\n\n"
-        f"📺 Type: "
-        f"{'TV Show' if media_type == 'tv' else 'Movie'}\n"
-        f"📅 Year: {item_year}\n"
-        f"⭐ Rating: {float(rating):.1f}\n\n"
+        f"📺 Type: {item_type}\n"
+        f"📅 Year: {html.escape(item_year)}\n"
+        f"⭐ Rating: {item_rating:.1f}\n\n"
         f"{html.escape(overview)}\n\n"
         "👇 <b>Click below to watch</b>"
     )
@@ -492,7 +617,9 @@ async def send_channel_post(
         BRAVE_PLAY_STORE_URL,
     )
 
-    image = poster(item)
+    image = poster(
+        item
+    )
 
     if image:
         await context.bot.send_photo(
@@ -502,6 +629,7 @@ async def send_channel_post(
             parse_mode="HTML",
             reply_markup=markup,
         )
+
     else:
         await context.bot.send_message(
             chat_id=channel_id,
@@ -521,7 +649,9 @@ async def admin_text_handler(
 ):
     user = update.effective_user
 
-    if not user or not admin_only(user.id):
+    if not user or not admin_only(
+        user.id
+    ):
         return
 
     post_type = context.user_data.get(
@@ -531,7 +661,13 @@ async def admin_text_handler(
     if not post_type:
         return
 
-    search_query = update.effective_message.text.strip()
+    search_query = (
+        update.effective_message.text
+        or ""
+    ).strip()
+
+    if not search_query:
+        return
 
     endpoint = (
         "/search/movie"
@@ -549,16 +685,18 @@ async def admin_text_handler(
         )
 
         results = [
-            x for x in data.get(
+            x
+            for x in data.get(
                 "results",
-                []
+                [],
             )
             if x.get("id")
         ][:10]
 
         if not results:
             await update.effective_message.reply_text(
-                "❌ Nothing found. Try another name."
+                "❌ Nothing found. "
+                "Try another name."
             )
             return
 
@@ -573,15 +711,27 @@ async def admin_text_handler(
         keyboard = []
 
         for item in results:
-            item_title = title(item)
+            item_title = title(
+                item
+            )
 
             if len(item_title) > 30:
-                item_title = item_title[:27] + "..."
+                item_title = (
+                    item_title[:27]
+                    + "..."
+                )
 
             keyboard.append([
                 kb.inline_button(
-                    f"📌 {item_title} ({year(item)})",
-                    f"admin_select_{post_type}_{item['id']}",
+                    (
+                        f"📌 {item_title} "
+                        f"({year(item)})"
+                    ),
+                    (
+                        f"admin_select_"
+                        f"{post_type}_"
+                        f"{item['id']}"
+                    ),
                 )
             ])
 
@@ -595,16 +745,14 @@ async def admin_text_handler(
         await update.effective_message.reply_text(
             "🔎 <b>Select what to post:</b>",
             parse_mode="HTML",
-            reply_markup=__import__(
-                "telegram"
-            ).InlineKeyboardMarkup(
+            reply_markup=InlineKeyboardMarkup(
                 keyboard
             ),
         )
 
     except Exception as exc:
         await update.effective_message.reply_text(
-            f"❌ TMDB error:\n"
+            "❌ TMDB error:\n"
             f"{html.escape(str(exc))}",
             parse_mode="HTML",
         )
@@ -626,23 +774,58 @@ async def admin_select_callback(
 
     user = update.effective_user
 
-    if not user or not admin_only(user.id):
+    if not user or not admin_only(
+        user.id
+    ):
         return
 
-    parts = query.data.split("_")
+    parts = query.data.split(
+        "_"
+    )
+
+    if len(parts) != 4:
+        return
 
     media_type = parts[2]
-    item_id = int(parts[3])
 
     try:
+        item_id = int(
+            parts[3]
+        )
+    except ValueError:
+        return
+
+    if media_type not in (
+        "movie",
+        "tv",
+    ):
+        return
+
+    try:
+        endpoint = (
+            f"/movie/{item_id}"
+            if media_type == "movie"
+            else f"/tv/{item_id}"
+        )
+
         item = tmdb_get(
-            f"/{'movie' if media_type == 'movie' else 'tv'}/{item_id}"
+            endpoint
         )
 
         await send_channel_post(
             context,
             item,
             media_type,
+        )
+
+        context.user_data.pop(
+            "admin_post_type",
+            None,
+        )
+
+        context.user_data.pop(
+            "admin_results",
+            None,
         )
 
         await query.edit_message_text(
@@ -653,7 +836,7 @@ async def admin_select_callback(
 
     except Exception as exc:
         await query.edit_message_text(
-            f"❌ <b>Could not post:</b>\n\n"
+            "❌ <b>Could not post:</b>\n\n"
             f"{html.escape(str(exc))}",
             parse_mode="HTML",
             reply_markup=kb.back_admin(),
@@ -674,14 +857,18 @@ async def horror_callback(
 
     user = update.effective_user
 
-    if not user or not admin_only(user.id):
+    if not user or not admin_only(
+        user.id
+    ):
         return
 
     try:
-        # Discover TV horror using multiple pages.
         results = []
 
-        for page in range(1, 4):
+        for page in range(
+            1,
+            4,
+        ):
             data = tmdb_get(
                 "/discover/tv",
                 {
@@ -695,56 +882,64 @@ async def horror_callback(
             results.extend(
                 data.get(
                     "results",
-                    []
+                    [],
                 )
             )
 
-        # Some TMDB results may have no poster/name.
         results = [
-            x for x in results
+            x
+            for x in results
             if x.get("id")
             and x.get("name")
         ]
 
-        # Remove duplicates.
         unique = {}
 
         for item in results:
-            unique[item["id"]] = item
+            unique[
+                item["id"]
+            ] = item
 
         results = list(
             unique.values()
         )[:3]
 
-        # If genre filtering returned too few,
-        # use popular TV as fallback and inspect genres.
         if len(results) < 3:
             fallback = tmdb_get(
                 "/tv/popular",
                 {
-                    "page": 1,
+                    "page": 1
                 },
             )
 
             for item in fallback.get(
                 "results",
-                []
+                [],
             ):
                 try:
+                    item_id = item.get(
+                        "id"
+                    )
+
+                    if not item_id:
+                        continue
+
                     details = tmdb_get(
-                        f"/tv/{item['id']}"
+                        f"/tv/{item_id}"
                     )
 
                     genres = [
                         g.get("id")
                         for g in details.get(
                             "genres",
-                            []
+                            [],
                         )
                     ]
 
                     if 27 in genres:
-                        unique[item["id"]] = details
+                        unique[
+                            item_id
+                        ] = details
 
                 except Exception:
                     continue
@@ -764,22 +959,33 @@ async def horror_callback(
             return
 
         await query.edit_message_text(
-            f"👻 <b>Posting {len(results)} Horror Shows...</b>",
+            (
+                f"👻 <b>Posting "
+                f"{len(results)} Horror Shows...</b>"
+            ),
             parse_mode="HTML",
         )
 
+        posted = 0
+
         for item in results:
-            await send_channel_post(
-                context,
-                item,
-                "tv",
-            )
+            try:
+                await send_channel_post(
+                    context,
+                    item,
+                    "tv",
+                )
+
+                posted += 1
+
+            except Exception:
+                continue
 
         await context.bot.send_message(
             chat_id=user.id,
             text=(
-                f"✅ <b>{len(results)} horror shows "
-                f"posted successfully!</b>"
+                f"✅ <b>{posted} horror "
+                f"shows posted successfully!</b>"
             ),
             parse_mode="HTML",
             reply_markup=kb.back_admin(),
@@ -787,7 +993,7 @@ async def horror_callback(
 
     except Exception as exc:
         await query.message.reply_text(
-            f"❌ Horror error:\n"
+            "❌ Horror error:\n"
             f"{html.escape(str(exc))}",
             parse_mode="HTML",
             reply_markup=kb.back_admin(),
@@ -795,7 +1001,7 @@ async def horror_callback(
 
 
 # ============================================================
-# ADMIN CALLBACK ROUTER
+# ADMIN HOME CALLBACK
 # ============================================================
 
 async def admin_home_callback(
@@ -808,8 +1014,15 @@ async def admin_home_callback(
 
     user = update.effective_user
 
-    if not user or not admin_only(user.id):
+    if not user or not admin_only(
+        user.id
+    ):
         return
+
+    context.user_data.pop(
+        "admin_post_type",
+        None,
+    )
 
     await show_admin_panel(
         update,
@@ -818,12 +1031,17 @@ async def admin_home_callback(
 
 
 # ============================================================
-# REGISTER
+# REGISTER ADMIN HANDLERS
 # ============================================================
 
-def register(app: Application):
+def register(
+    app: Application,
+):
 
+    # --------------------------------------------------------
     # /admin
+    # --------------------------------------------------------
+
     app.add_handler(
         CommandHandler(
             "admin",
@@ -831,7 +1049,10 @@ def register(app: Application):
         )
     )
 
+    # --------------------------------------------------------
     # Admin text input
+    # --------------------------------------------------------
+
     app.add_handler(
         MessageHandler(
             filters.TEXT
@@ -840,7 +1061,10 @@ def register(app: Application):
         )
     )
 
+    # --------------------------------------------------------
     # Admin home
+    # --------------------------------------------------------
+
     app.add_handler(
         CallbackQueryHandler(
             admin_home_callback,
@@ -848,7 +1072,10 @@ def register(app: Application):
         )
     )
 
+    # --------------------------------------------------------
     # Maintenance
+    # --------------------------------------------------------
+
     app.add_handler(
         CallbackQueryHandler(
             maintenance_callback,
@@ -856,7 +1083,10 @@ def register(app: Application):
         )
     )
 
+    # --------------------------------------------------------
     # Statistics
+    # --------------------------------------------------------
+
     app.add_handler(
         CallbackQueryHandler(
             statistics_callback,
@@ -864,7 +1094,10 @@ def register(app: Application):
         )
     )
 
+    # --------------------------------------------------------
     # Recent users
+    # --------------------------------------------------------
+
     app.add_handler(
         CallbackQueryHandler(
             recent_users_callback,
@@ -872,7 +1105,10 @@ def register(app: Application):
         )
     )
 
+    # --------------------------------------------------------
     # Admin ID
+    # --------------------------------------------------------
+
     app.add_handler(
         CallbackQueryHandler(
             admin_id_callback,
@@ -880,7 +1116,10 @@ def register(app: Application):
         )
     )
 
+    # --------------------------------------------------------
     # Channel settings
+    # --------------------------------------------------------
+
     app.add_handler(
         CallbackQueryHandler(
             channel_settings_callback,
@@ -888,7 +1127,10 @@ def register(app: Application):
         )
     )
 
+    # --------------------------------------------------------
     # Post movie
+    # --------------------------------------------------------
+
     app.add_handler(
         CallbackQueryHandler(
             post_movie_callback,
@@ -896,7 +1138,10 @@ def register(app: Application):
         )
     )
 
+    # --------------------------------------------------------
     # Post TV
+    # --------------------------------------------------------
+
     app.add_handler(
         CallbackQueryHandler(
             post_tv_callback,
@@ -904,7 +1149,21 @@ def register(app: Application):
         )
     )
 
+    # --------------------------------------------------------
+    # Post menu
+    # --------------------------------------------------------
+
+    app.add_handler(
+        CallbackQueryHandler(
+            admin_post_menu_callback,
+            pattern=r"^admin_post_menu$",
+        )
+    )
+
+    # --------------------------------------------------------
     # Top 3 horror
+    # --------------------------------------------------------
+
     app.add_handler(
         CallbackQueryHandler(
             horror_callback,
@@ -912,7 +1171,12 @@ def register(app: Application):
         )
     )
 
-    # Selected movie/TV to post
+    # --------------------------------------------------------
+    # Selected movie / TV
+    #
+    # THIS IS THE FINAL ADMIN CALLBACK REGISTRATION.
+    # --------------------------------------------------------
+
     app.add_handler(
         CallbackQueryHandler(
             admin_select_callback,

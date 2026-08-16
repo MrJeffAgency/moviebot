@@ -2,7 +2,6 @@ import html
 import requests
 
 from telegram import (
-    Update,
     InlineKeyboardMarkup,
 )
 
@@ -17,13 +16,25 @@ import database as db
 import keyboards as kb
 
 from config import (
+    ADMIN_IDS,
+    CHANNEL_USERNAME,
+
     TMDB_API_KEY,
     TMDB_BASE_URL,
     TMDB_HEADERS,
     TMDB_IMAGE_BASE,
+
     BRAVE_PLAY_STORE_URL,
-    CHANNEL_USERNAME,
-    ADMIN_IDS,
+    CHANNEL_ID,
+
+    BTC_WALLET,
+    LTC_WALLET,
+    BNB_WALLET,
+    ETH_WALLET,
+    USDT_WALLET,
+    DOGE_WALLET,
+    TRX_WALLET,
+    SOL_WALLET,
 )
 
 
@@ -31,15 +42,22 @@ from config import (
 # TMDB
 # ============================================================
 
-def tmdb_get(endpoint, params=None):
+def tmdb_get(
+    endpoint,
+    params=None,
+):
     if not TMDB_API_KEY:
         raise RuntimeError(
             "TMDB_API_KEY is not configured."
         )
 
-    request_params = dict(params or {})
+    request_params = dict(
+        params or {}
+    )
 
-    request_params["api_key"] = TMDB_API_KEY
+    request_params["api_key"] = (
+        TMDB_API_KEY
+    )
 
     response = requests.get(
         f"{TMDB_BASE_URL}{endpoint}",
@@ -72,23 +90,50 @@ def get_year(item):
         or ""
     )
 
-    return date[:4] if date else "N/A"
+    return (
+        date[:4]
+        if date
+        else "N/A"
+    )
+
+
+def get_rating(item):
+    try:
+        return float(
+            item.get(
+                "vote_average",
+                0,
+            ) or 0
+        )
+    except (
+        TypeError,
+        ValueError,
+    ):
+        return 0.0
 
 
 def get_poster_url(item):
-    path = item.get("poster_path")
+    path = item.get(
+        "poster_path"
+    )
 
     if not path:
         return None
 
-    return f"{TMDB_IMAGE_BASE}{path}"
+    return (
+        f"{TMDB_IMAGE_BASE}{path}"
+    )
 
 
 def get_item_type(item):
-    if item.get("media_type") == "tv":
+    media_type = item.get(
+        "media_type"
+    )
+
+    if media_type == "tv":
         return "TV Show"
 
-    if item.get("media_type") == "movie":
+    if media_type == "movie":
         return "Movie"
 
     if item.get("first_air_date"):
@@ -104,20 +149,50 @@ def get_vidsrc_url(item):
         return None
 
     if get_item_type(item) == "TV Show":
-        return f"https://vidsrc.to/embed/tv/{item_id}"
+        return (
+            f"https://vidsrc.to/embed/tv/"
+            f"{item_id}"
+        )
 
-    return f"https://vidsrc.to/embed/movie/{item_id}"
+    return (
+        f"https://vidsrc.to/embed/movie/"
+        f"{item_id}"
+    )
+
+
+def clean_overview(
+    overview,
+    maximum=500,
+):
+    overview = (
+        overview
+        or "No description available."
+    ).strip()
+
+    if len(overview) > maximum:
+        overview = (
+            overview[: maximum - 3]
+            + "..."
+        )
+
+    return overview
 
 
 # ============================================================
-# MAINTENANCE
+# ADMIN CHECK
 # ============================================================
 
 def is_admin(user_id):
     return user_id in ADMIN_IDS
 
 
-async def maintenance_guard(update):
+# ============================================================
+# MAINTENANCE
+# ============================================================
+
+async def maintenance_guard(
+    update,
+):
     user = update.effective_user
 
     if not user:
@@ -127,12 +202,19 @@ async def maintenance_guard(update):
         return False
 
     if db.is_maintenance():
-        await update.effective_message.reply_text(
-            "🔧 <b>Bot Maintenance</b>\n\n"
-            "The bot is temporarily under maintenance.\n"
-            "Please try again later. 🛠️",
-            parse_mode="HTML",
+        message = (
+            update.effective_message
         )
+
+        if message:
+            await message.reply_text(
+                "🔧 <b>Bot Maintenance</b>\n\n"
+                "The bot is temporarily under "
+                "maintenance.\n\n"
+                "Please try again later. 🛠️",
+                parse_mode="HTML",
+            )
+
         return True
 
     return False
@@ -151,7 +233,6 @@ async def check_user_membership(
     if not user:
         return False
 
-    # Admins bypass membership requirement.
     if is_admin(user.id):
         return True
 
@@ -159,14 +240,14 @@ async def check_user_membership(
         return True
 
     try:
-        member = await context.bot.get_chat_member(
-            f"@{CHANNEL_USERNAME.lstrip('@')}",
-            user.id,
+        member = (
+            await context.bot.get_chat_member(
+                f"@{CHANNEL_USERNAME.lstrip('@')}",
+                user.id,
+            )
         )
 
-        status = member.status
-
-        if status in (
+        if member.status in (
             "member",
             "administrator",
             "creator",
@@ -176,28 +257,35 @@ async def check_user_membership(
     except Exception:
         pass
 
-    await update.effective_message.reply_text(
-        "🔐 <b>Join our Telegram channel first</b>\n\n"
-        "Join the channel and then press "
-        "<b>Done — Check Membership</b>.",
-        parse_mode="HTML",
-        reply_markup=kb.join_channel_keyboard(
-            CHANNEL_USERNAME
-        ),
+    message = (
+        update.effective_message
     )
+
+    if message:
+        await message.reply_text(
+            "🔐 <b>Join our Telegram channel first</b>\n\n"
+            "Join the channel and then press "
+            "<b>Done — Check Membership</b>.",
+            parse_mode="HTML",
+            reply_markup=kb.join_channel_keyboard(
+                CHANNEL_USERNAME
+            ),
+        )
 
     return False
 
 
 # ============================================================
-# COMMON ACCESS CHECK
+# COMMON ACCESS
 # ============================================================
 
 async def user_access_allowed(
     update,
     context,
 ):
-    if await maintenance_guard(update):
+    if await maintenance_guard(
+        update
+    ):
         return False
 
     if not await check_user_membership(
@@ -221,31 +309,21 @@ async def send_post_with_buttons(
     back_callback=None,
 ):
     title = get_title(item)
-    year = get_year(item)
+    item_year = get_year(item)
     item_type = get_item_type(item)
+    rating = get_rating(item)
 
-    rating = item.get(
-        "vote_average",
-        0,
-    )
-
-    try:
-        rating = float(rating)
-    except (TypeError, ValueError):
-        rating = 0.0
-
-    overview = (
+    overview = clean_overview(
         item.get("overview")
-        or "No description available."
     )
 
-    overview = overview.strip()
+    watch_url = get_vidsrc_url(
+        item
+    )
 
-    if len(overview) > 500:
-        overview = overview[:497] + "..."
-
-    watch_url = get_vidsrc_url(item)
-    poster_url = get_poster_url(item)
+    poster_url = get_poster_url(
+        item
+    )
 
     if not watch_url:
         raise RuntimeError(
@@ -254,12 +332,12 @@ async def send_post_with_buttons(
 
     caption = (
         f"🎬 <b>{html.escape(title)}</b>\n\n"
-        f"📺 Type: {item_type}\n"
-        f"📅 Year: {year}\n"
+        f"📺 Type: {html.escape(item_type)}\n"
+        f"📅 Year: {html.escape(item_year)}\n"
         f"⭐ Rating: {rating:.1f}\n\n"
         f"{html.escape(overview)}\n\n"
-        f"👇 <b>Click below to watch</b>\n"
-        f"🦁 Best experienced with Brave Browser."
+        "👇 <b>Click below to watch</b>\n"
+        "🦁 Best experienced with Brave Browser."
     )
 
     markup = kb.movie_keyboard(
@@ -269,10 +347,11 @@ async def send_post_with_buttons(
     )
 
     if is_channel:
-        channel_id = db.get_channel_id()
+        channel_id = (
+            db.get_channel_id()
+        )
 
         if not channel_id:
-            from config import CHANNEL_ID
             channel_id = CHANNEL_ID
 
         if not channel_id:
@@ -283,7 +362,9 @@ async def send_post_with_buttons(
         chat_id = channel_id
 
     else:
-        chat_id = update.effective_chat.id
+        chat_id = (
+            update.effective_chat.id
+        )
 
     if poster_url:
         await context.bot.send_photo(
@@ -293,6 +374,7 @@ async def send_post_with_buttons(
             parse_mode="HTML",
             reply_markup=markup,
         )
+
     else:
         await context.bot.send_message(
             chat_id=chat_id,
@@ -306,7 +388,10 @@ async def send_post_with_buttons(
 # START
 # ============================================================
 
-async def start(update, context):
+async def start(
+    update,
+    context,
+):
     user = update.effective_user
 
     if user:
@@ -317,7 +402,9 @@ async def start(update, context):
             user.last_name,
         )
 
-    if await maintenance_guard(update):
+    if await maintenance_guard(
+        update
+    ):
         return
 
     if not await check_user_membership(
@@ -334,7 +421,9 @@ async def start(update, context):
         "📺 <code>/seasons Breaking Bad</code>\n"
         "🌟 <code>/popular</code>\n"
         "🏆 <code>/toprated</code>\n"
-        "📋 <code>/help</code>",
+        "📋 <code>/help</code>\n\n"
+        "❤️ <b>Support</b> is available from "
+        "the main menu.",
         parse_mode="HTML",
         reply_markup=kb.main_menu(),
     )
@@ -344,7 +433,10 @@ async def start(update, context):
 # HELP
 # ============================================================
 
-async def help_cmd(update, context):
+async def help_cmd(
+    update,
+    context,
+):
     if not await user_access_allowed(
         update,
         context,
@@ -360,9 +452,11 @@ async def help_cmd(update, context):
         "📺 <code>/seasons Breaking Bad</code>\n"
         "Choose a TV show and view seasons.\n\n"
         "🌟 <code>/popular</code>\n"
-        "Popular movies.\n\n"
+        "Show popular movies.\n\n"
         "🏆 <code>/toprated</code>\n"
-        "Top rated movies.",
+        "Show top-rated movies.\n\n"
+        "❤️ <b>Support</b>\n"
+        "Open the Support button from the main menu.",
         parse_mode="HTML",
     )
 
@@ -379,6 +473,7 @@ def build_results_text(
     per_page=10,
 ):
     start = page * per_page
+
     end = min(
         start + per_page,
         len(results),
@@ -403,32 +498,39 @@ def build_results_text(
         results[start:end],
         start=start + 1,
     ):
-        title = html.escape(
+        item_title = html.escape(
             get_title(item)
         )
 
-        year = get_year(item)
-
-        rating = item.get(
-            "vote_average",
-            0,
+        item_year = get_year(
+            item
         )
 
-        try:
-            rating = float(rating)
-        except Exception:
-            rating = 0
+        rating = get_rating(
+            item
+        )
 
         lines.append(
             f"<b>{index}.</b> "
-            f"{title} "
-            f"({year}) ⭐ {rating:.1f}"
+            f"{item_title} "
+            f"({item_year}) "
+            f"⭐ {rating:.1f}"
+        )
+
+    if start < end:
+        showing = (
+            f"Showing {start + 1}-{end} "
+            f"of {len(results)} results."
+        )
+    else:
+        showing = (
+            f"No results on page "
+            f"{page + 1}."
         )
 
     lines.extend([
         "",
-        f"Showing {start + 1}-{end} "
-        f"of {len(results)} results.",
+        showing,
     ])
 
     return "\n".join(lines)
@@ -453,19 +555,32 @@ def build_search_keyboard(
         results[start:end],
         start=start + 1,
     ):
-        title = get_title(item)
+        item_title = get_title(
+            item
+        )
 
-        if len(title) > 30:
-            title = title[:27] + "..."
+        if len(item_title) > 30:
+            item_title = (
+                item_title[:27]
+                + "..."
+            )
 
-        year = get_year(item)
+        item_year = get_year(
+            item
+        )
 
-        text = f"{index}. {title}"
+        text = (
+            f"{index}. {item_title}"
+        )
 
-        if year != "N/A":
-            text += f" ({year})"
+        if item_year != "N/A":
+            text += (
+                f" ({item_year})"
+            )
 
-        item_id = item.get("id")
+        item_id = item.get(
+            "id"
+        )
 
         if not item_id:
             continue
@@ -473,7 +588,11 @@ def build_search_keyboard(
         keyboard.append([
             kb.inline_button(
                 text,
-                f"select_{media_type}_{item_id}",
+                (
+                    f"select_"
+                    f"{media_type}_"
+                    f"{item_id}"
+                ),
             )
         ])
 
@@ -483,7 +602,11 @@ def build_search_keyboard(
         navigation.append(
             kb.inline_button(
                 "⬅️ Previous",
-                f"results_{media_type}_{page - 1}",
+                (
+                    f"results_"
+                    f"{media_type}_"
+                    f"{page - 1}"
+                ),
             )
         )
 
@@ -491,12 +614,18 @@ def build_search_keyboard(
         navigation.append(
             kb.inline_button(
                 "Next ➡️",
-                f"results_{media_type}_{page + 1}",
+                (
+                    f"results_"
+                    f"{media_type}_"
+                    f"{page + 1}"
+                ),
             )
         )
 
     if navigation:
-        keyboard.append(navigation)
+        keyboard.append(
+            navigation
+        )
 
     keyboard.append([
         kb.inline_button(
@@ -505,7 +634,9 @@ def build_search_keyboard(
         )
     ])
 
-    return InlineKeyboardMarkup(keyboard)
+    return InlineKeyboardMarkup(
+        keyboard
+    )
 
 
 def store_results(
@@ -514,16 +645,27 @@ def store_results(
     search_query,
     media_type,
 ):
-    context.user_data["search_results"] = results
-    context.user_data["search_query"] = search_query
-    context.user_data["search_media_type"] = media_type
+    context.user_data[
+        "search_results"
+    ] = results
+
+    context.user_data[
+        "search_query"
+    ] = search_query
+
+    context.user_data[
+        "search_media_type"
+    ] = media_type
 
 
 # ============================================================
 # MOVIE SEARCH
 # ============================================================
 
-async def movie_search_cmd(update, context):
+async def movie_search_cmd(
+    update,
+    context,
+):
     if not await user_access_allowed(
         update,
         context,
@@ -538,7 +680,9 @@ async def movie_search_cmd(update, context):
         )
         return
 
-    search_query = " ".join(context.args)
+    search_query = " ".join(
+        context.args
+    )
 
     try:
         data = tmdb_get(
@@ -551,13 +695,17 @@ async def movie_search_cmd(update, context):
         )
 
         results = [
-            x for x in data.get("results", [])
+            x
+            for x in data.get(
+                "results",
+                [],
+            )
             if x.get("id")
         ][:20]
 
         if not results:
             await update.effective_message.reply_text(
-                "❌ No movies found.",
+                "❌ No movies found."
             )
             return
 
@@ -592,7 +740,7 @@ async def movie_search_cmd(update, context):
 
     except Exception as exc:
         await update.effective_message.reply_text(
-            f"❌ TMDB error: "
+            "❌ TMDB error:\n"
             f"<code>{html.escape(str(exc))}</code>",
             parse_mode="HTML",
         )
@@ -602,7 +750,10 @@ async def movie_search_cmd(update, context):
 # TV SEARCH
 # ============================================================
 
-async def tvshow_search_cmd(update, context):
+async def tvshow_search_cmd(
+    update,
+    context,
+):
     if not await user_access_allowed(
         update,
         context,
@@ -617,7 +768,9 @@ async def tvshow_search_cmd(update, context):
         )
         return
 
-    search_query = " ".join(context.args)
+    search_query = " ".join(
+        context.args
+    )
 
     try:
         data = tmdb_get(
@@ -629,13 +782,17 @@ async def tvshow_search_cmd(update, context):
         )
 
         results = [
-            x for x in data.get("results", [])
+            x
+            for x in data.get(
+                "results",
+                [],
+            )
             if x.get("id")
         ][:20]
 
         if not results:
             await update.effective_message.reply_text(
-                "❌ No TV shows found.",
+                "❌ No TV shows found."
             )
             return
 
@@ -670,7 +827,7 @@ async def tvshow_search_cmd(update, context):
 
     except Exception as exc:
         await update.effective_message.reply_text(
-            f"❌ TMDB error: "
+            "❌ TMDB error:\n"
             f"<code>{html.escape(str(exc))}</code>",
             parse_mode="HTML",
         )
@@ -680,21 +837,34 @@ async def tvshow_search_cmd(update, context):
 # SELECT MOVIE / TV
 # ============================================================
 
-async def select_result_callback(update, context):
+async def select_result_callback(
+    update,
+    context,
+):
     query = update.callback_query
 
     await query.answer()
 
-    parts = query.data.split("_")
+    parts = query.data.split(
+        "_"
+    )
 
     if len(parts) != 3:
         return
 
-    _, media_type, item_id = parts
+    _, media_type, item_id_text = parts
 
     try:
-        item_id = int(item_id)
+        item_id = int(
+            item_id_text
+        )
     except ValueError:
+        return
+
+    if media_type not in (
+        "movie",
+        "tv",
+    ):
         return
 
     try:
@@ -704,9 +874,13 @@ async def select_result_callback(update, context):
             else f"/tv/{item_id}"
         )
 
-        item = tmdb_get(endpoint)
+        item = tmdb_get(
+            endpoint
+        )
 
-        item["media_type"] = media_type
+        item["media_type"] = (
+            media_type
+        )
 
         await query.edit_message_text(
             "⏳ Loading..."
@@ -725,7 +899,7 @@ async def select_result_callback(update, context):
 
     except Exception as exc:
         await query.message.reply_text(
-            f"❌ TMDB error:\n"
+            "❌ TMDB error:\n"
             f"{html.escape(str(exc))}",
             parse_mode="HTML",
         )
@@ -743,7 +917,9 @@ async def results_page_callback(
 
     await query.answer()
 
-    parts = query.data.split("_")
+    parts = query.data.split(
+        "_"
+    )
 
     if len(parts) != 3:
         return
@@ -751,7 +927,9 @@ async def results_page_callback(
     _, media_type, page_text = parts
 
     try:
-        page = int(page_text)
+        page = int(
+            page_text
+        )
     except ValueError:
         return
 
@@ -767,7 +945,8 @@ async def results_page_callback(
 
     if not results:
         await query.edit_message_text(
-            "⚠️ Search expired. Please search again."
+            "⚠️ Search expired. "
+            "Please search again."
         )
         return
 
@@ -804,6 +983,16 @@ async def results_cancel_callback(
         None,
     )
 
+    context.user_data.pop(
+        "search_query",
+        None,
+    )
+
+    context.user_data.pop(
+        "search_media_type",
+        None,
+    )
+
     await query.edit_message_text(
         "❌ Search cancelled."
     )
@@ -813,7 +1002,10 @@ async def results_cancel_callback(
 # SEASONS SEARCH
 # ============================================================
 
-async def seasons_cmd(update, context):
+async def seasons_cmd(
+    update,
+    context,
+):
     if not await user_access_allowed(
         update,
         context,
@@ -828,7 +1020,9 @@ async def seasons_cmd(update, context):
         )
         return
 
-    search_query = " ".join(context.args)
+    search_query = " ".join(
+        context.args
+    )
 
     try:
         data = tmdb_get(
@@ -840,7 +1034,11 @@ async def seasons_cmd(update, context):
         )
 
         results = [
-            x for x in data.get("results", [])
+            x
+            for x in data.get(
+                "results",
+                [],
+            )
             if x.get("id")
         ][:20]
 
@@ -857,16 +1055,30 @@ async def seasons_cmd(update, context):
         keyboard = []
 
         for item in results:
-            title = get_title(item)
-            year = get_year(item)
+            item_title = get_title(
+                item
+            )
 
-            if len(title) > 30:
-                title = title[:27] + "..."
+            item_year = get_year(
+                item
+            )
+
+            if len(item_title) > 30:
+                item_title = (
+                    item_title[:27]
+                    + "..."
+                )
 
             keyboard.append([
                 kb.inline_button(
-                    f"📺 {title} ({year})",
-                    f"season_show_{item['id']}",
+                    (
+                        f"📺 {item_title} "
+                        f"({item_year})"
+                    ),
+                    (
+                        f"season_show_"
+                        f"{item['id']}"
+                    ),
                 )
             ])
 
@@ -888,8 +1100,8 @@ async def seasons_cmd(update, context):
 
     except Exception as exc:
         await update.effective_message.reply_text(
-            f"❌ TMDB error: "
-            f"{html.escape(str(exc))}",
+            "❌ TMDB error:\n"
+            f"<code>{html.escape(str(exc))}</code>",
             parse_mode="HTML",
         )
 
@@ -906,23 +1118,27 @@ async def season_show_callback(
 
     await query.answer()
 
-    show_id = int(
-        query.data.split("_")[-1]
-    )
+    try:
+        show_id = int(
+            query.data.split("_")[-1]
+        )
+    except ValueError:
+        return
 
     try:
         details = tmdb_get(
             f"/tv/{show_id}"
         )
 
-        seasons = details.get(
-            "seasons",
-            [],
-        )
-
         seasons = [
-            s for s in seasons
-            if s.get("season_number") != 0
+            s
+            for s in details.get(
+                "seasons",
+                [],
+            )
+            if s.get(
+                "season_number"
+            ) != 0
         ]
 
         if not seasons:
@@ -956,9 +1172,15 @@ async def season_show_callback(
 
             keyboard.append([
                 kb.inline_button(
-                    f"📀 Season {number} "
-                    f"({episodes} episodes)",
-                    f"season_{show_id}_{number}",
+                    (
+                        f"📀 Season {number} "
+                        f"({episodes} episodes)"
+                    ),
+                    (
+                        f"season_"
+                        f"{show_id}_"
+                        f"{number}"
+                    ),
                 )
             ])
 
@@ -970,8 +1192,12 @@ async def season_show_callback(
         ])
 
         await query.edit_message_text(
-            f"📺 <b>{html.escape(details.get('name', 'TV Show'))}</b>\n\n"
-            "Choose a season:",
+            (
+                f"📺 <b>"
+                f"{html.escape(details.get('name', 'TV Show'))}"
+                f"</b>\n\n"
+                "Choose a season:"
+            ),
             parse_mode="HTML",
             reply_markup=InlineKeyboardMarkup(
                 keyboard
@@ -980,7 +1206,7 @@ async def season_show_callback(
 
     except Exception as exc:
         await query.message.reply_text(
-            f"❌ TMDB error: "
+            "❌ TMDB error:\n"
             f"{html.escape(str(exc))}",
             parse_mode="HTML",
         )
@@ -998,14 +1224,29 @@ async def season_callback(
 
     await query.answer()
 
-    parts = query.data.split("_")
+    parts = query.data.split(
+        "_"
+    )
 
-    show_id = int(parts[1])
-    season_number = int(parts[2])
+    if len(parts) != 3:
+        return
+
+    try:
+        show_id = int(
+            parts[1]
+        )
+
+        season_number = int(
+            parts[2]
+        )
+
+    except ValueError:
+        return
 
     try:
         data = tmdb_get(
-            f"/tv/{show_id}/season/{season_number}"
+            f"/tv/{show_id}/season/"
+            f"{season_number}"
         )
 
         episodes = data.get(
@@ -1040,11 +1281,17 @@ async def season_callback(
             )
 
             if len(name) > 35:
-                name = name[:32] + "..."
+                name = (
+                    name[:32]
+                    + "..."
+                )
 
             keyboard.append([
                 kb.inline_button(
-                    f"▶️ {episode_number}. {name}",
+                    (
+                        f"▶️ {episode_number}. "
+                        f"{name}"
+                    ),
                     (
                         f"episode_"
                         f"{show_id}_"
@@ -1057,13 +1304,19 @@ async def season_callback(
         keyboard.append([
             kb.inline_button(
                 "🔙 Back to Seasons",
-                f"back_seasons_{show_id}",
+                (
+                    f"back_seasons_"
+                    f"{show_id}"
+                ),
             )
         ])
 
         await query.edit_message_text(
-            f"📺 <b>Season {season_number}</b>\n\n"
-            "Choose an episode:",
+            (
+                f"📺 <b>Season "
+                f"{season_number}</b>\n\n"
+                "Choose an episode:"
+            ),
             parse_mode="HTML",
             reply_markup=InlineKeyboardMarkup(
                 keyboard
@@ -1072,7 +1325,7 @@ async def season_callback(
 
     except Exception as exc:
         await query.message.reply_text(
-            f"❌ TMDB error: "
+            "❌ TMDB error:\n"
             f"{html.escape(str(exc))}",
             parse_mode="HTML",
         )
@@ -1090,11 +1343,28 @@ async def episode_callback(
 
     await query.answer()
 
-    parts = query.data.split("_")
+    parts = query.data.split(
+        "_"
+    )
 
-    show_id = int(parts[1])
-    season_number = int(parts[2])
-    episode_number = int(parts[3])
+    if len(parts) != 4:
+        return
+
+    try:
+        show_id = int(
+            parts[1]
+        )
+
+        season_number = int(
+            parts[2]
+        )
+
+        episode_number = int(
+            parts[3]
+        )
+
+    except ValueError:
+        return
 
     watch_url = (
         f"https://vidsrc.to/embed/tv/"
@@ -1106,7 +1376,11 @@ async def episode_callback(
     markup = kb.movie_keyboard(
         watch_url,
         BRAVE_PLAY_STORE_URL,
-        f"back_episodes_{show_id}_{season_number}",
+        (
+            f"back_episodes_"
+            f"{show_id}_"
+            f"{season_number}"
+        ),
     )
 
     await query.edit_message_text(
@@ -1117,6 +1391,114 @@ async def episode_callback(
         parse_mode="HTML",
         reply_markup=markup,
     )
+
+
+# ============================================================
+# BACK TO EPISODES
+# ============================================================
+
+async def back_episodes_callback(
+    update,
+    context,
+):
+    query = update.callback_query
+
+    await query.answer()
+
+    parts = query.data.split(
+        "_"
+    )
+
+    if len(parts) != 3:
+        return
+
+    try:
+        show_id = int(
+            parts[1]
+        )
+
+        season_number = int(
+            parts[2]
+        )
+
+    except ValueError:
+        return
+
+    try:
+        data = tmdb_get(
+            f"/tv/{show_id}/season/"
+            f"{season_number}"
+        )
+
+        episodes = data.get(
+            "episodes",
+            [],
+        )
+
+        if not episodes:
+            await query.edit_message_text(
+                "❌ No episodes found."
+            )
+            return
+
+        keyboard = []
+
+        for episode in episodes:
+            episode_number = episode.get(
+                "episode_number"
+            )
+
+            name = episode.get(
+                "name",
+                "Episode",
+            )
+
+            if len(name) > 35:
+                name = (
+                    name[:32]
+                    + "..."
+                )
+
+            keyboard.append([
+                kb.inline_button(
+                    (
+                        f"▶️ {episode_number}. "
+                        f"{name}"
+                    ),
+                    (
+                        f"episode_"
+                        f"{show_id}_"
+                        f"{season_number}_"
+                        f"{episode_number}"
+                    ),
+                )
+            ])
+
+        keyboard.append([
+            kb.inline_button(
+                "🔙 Back to Seasons",
+                f"back_seasons_{show_id}",
+            )
+        ])
+
+        await query.edit_message_text(
+            (
+                f"📺 <b>Season "
+                f"{season_number}</b>\n\n"
+                "Choose an episode:"
+            ),
+            parse_mode="HTML",
+            reply_markup=InlineKeyboardMarkup(
+                keyboard
+            ),
+        )
+
+    except Exception as exc:
+        await query.edit_message_text(
+            "❌ TMDB error:\n"
+            f"<code>{html.escape(str(exc))}</code>",
+            parse_mode="HTML",
+        )
 
 
 # ============================================================
@@ -1131,9 +1513,12 @@ async def back_seasons_callback(
 
     await query.answer()
 
-    show_id = int(
-        query.data.split("_")[-1]
-    )
+    try:
+        show_id = int(
+            query.data.split("_")[-1]
+        )
+    except ValueError:
+        return
 
     try:
         details = tmdb_get(
@@ -1141,11 +1526,14 @@ async def back_seasons_callback(
         )
 
         seasons = [
-            s for s in details.get(
+            s
+            for s in details.get(
                 "seasons",
-                []
+                [],
             )
-            if s.get("season_number") != 0
+            if s.get(
+                "season_number"
+            ) != 0
         ]
 
         keyboard = []
@@ -1162,15 +1550,25 @@ async def back_seasons_callback(
 
             keyboard.append([
                 kb.inline_button(
-                    f"📀 Season {number} "
-                    f"({episodes} episodes)",
-                    f"season_{show_id}_{number}",
+                    (
+                        f"📀 Season {number} "
+                        f"({episodes} episodes)"
+                    ),
+                    (
+                        f"season_"
+                        f"{show_id}_"
+                        f"{number}"
+                    ),
                 )
             ])
 
         await query.edit_message_text(
-            f"📺 <b>{html.escape(details.get('name', 'TV Show'))}</b>\n\n"
-            "Choose a season:",
+            (
+                f"📺 <b>"
+                f"{html.escape(details.get('name', 'TV Show'))}"
+                f"</b>\n\n"
+                "Choose a season:"
+            ),
             parse_mode="HTML",
             reply_markup=InlineKeyboardMarkup(
                 keyboard
@@ -1185,10 +1583,83 @@ async def back_seasons_callback(
 
 
 # ============================================================
+# SEASONS BACK
+# ============================================================
+
+async def seasons_back_callback(
+    update,
+    context,
+):
+    query = update.callback_query
+
+    await query.answer()
+
+    results = context.user_data.get(
+        "season_results",
+        [],
+    )
+
+    if not results:
+        await query.edit_message_text(
+            "⚠️ Previous search expired. "
+            "Please use /seasons again."
+        )
+        return
+
+    keyboard = []
+
+    for item in results:
+        item_title = get_title(
+            item
+        )
+
+        item_year = get_year(
+            item
+        )
+
+        if len(item_title) > 30:
+            item_title = (
+                item_title[:27]
+                + "..."
+            )
+
+        keyboard.append([
+            kb.inline_button(
+                (
+                    f"📺 {item_title} "
+                    f"({item_year})"
+                ),
+                (
+                    f"season_show_"
+                    f"{item['id']}"
+                ),
+            )
+        ])
+
+    keyboard.append([
+        kb.inline_button(
+            "❌ Cancel",
+            "results_cancel",
+        )
+    ])
+
+    await query.edit_message_text(
+        "📺 <b>Choose a TV Show</b>",
+        parse_mode="HTML",
+        reply_markup=InlineKeyboardMarkup(
+            keyboard
+        ),
+    )
+
+
+# ============================================================
 # POPULAR
 # ============================================================
 
-async def popular_cmd(update, context):
+async def popular_cmd(
+    update,
+    context,
+):
     if not await user_access_allowed(
         update,
         context,
@@ -1198,7 +1669,9 @@ async def popular_cmd(update, context):
     try:
         data = tmdb_get(
             "/movie/popular",
-            {"page": 1},
+            {
+                "page": 1
+            },
         )
 
         movies = data.get(
@@ -1212,16 +1685,19 @@ async def popular_cmd(update, context):
             )
             return
 
+        item = movies[0]
+        item["media_type"] = "movie"
+
         await send_post_with_buttons(
             update,
             context,
-            movies[0],
+            item,
         )
 
     except Exception as exc:
         await update.effective_message.reply_text(
-            f"❌ TMDB error: "
-            f"{html.escape(str(exc))}",
+            "❌ TMDB error:\n"
+            f"<code>{html.escape(str(exc))}</code>",
             parse_mode="HTML",
         )
 
@@ -1230,7 +1706,10 @@ async def popular_cmd(update, context):
 # TOP RATED
 # ============================================================
 
-async def toprated_cmd(update, context):
+async def toprated_cmd(
+    update,
+    context,
+):
     if not await user_access_allowed(
         update,
         context,
@@ -1240,7 +1719,9 @@ async def toprated_cmd(update, context):
     try:
         data = tmdb_get(
             "/movie/top_rated",
-            {"page": 1},
+            {
+                "page": 1
+            },
         )
 
         movies = data.get(
@@ -1254,22 +1735,25 @@ async def toprated_cmd(update, context):
             )
             return
 
+        item = movies[0]
+        item["media_type"] = "movie"
+
         await send_post_with_buttons(
             update,
             context,
-            movies[0],
+            item,
         )
 
     except Exception as exc:
         await update.effective_message.reply_text(
-            f"❌ TMDB error: "
-            f"{html.escape(str(exc))}",
+            "❌ TMDB error:\n"
+            f"<code>{html.escape(str(exc))}</code>",
             parse_mode="HTML",
         )
 
 
 # ============================================================
-# MEMBERSHIP CHECK BUTTON
+# MEMBERSHIP CHECK
 # ============================================================
 
 async def membership_callback(
@@ -1282,10 +1766,21 @@ async def membership_callback(
 
     user = update.effective_user
 
+    if not user:
+        return
+
+    if not CHANNEL_USERNAME:
+        await query.message.reply_text(
+            "⚠️ Channel membership is not configured."
+        )
+        return
+
     try:
-        member = await context.bot.get_chat_member(
-            f"@{CHANNEL_USERNAME.lstrip('@')}",
-            user.id,
+        member = (
+            await context.bot.get_chat_member(
+                f"@{CHANNEL_USERNAME.lstrip('@')}",
+                user.id,
+            )
         )
 
         if member.status in (
@@ -1293,16 +1788,25 @@ async def membership_callback(
             "administrator",
             "creator",
         ):
+            db.save_user(
+                user.id,
+                user.username,
+                user.first_name,
+                user.last_name,
+            )
+
             await query.message.reply_text(
                 "✅ <b>Membership verified!</b>\n\n"
                 "🎬 Welcome to MovieBot.",
                 parse_mode="HTML",
                 reply_markup=kb.main_menu(),
             )
+
         else:
             await query.message.reply_text(
-                "😂 <b>Hahaha 😀 I can find you there!</b>\n\n"
-                "Join the channel first 😉",
+                "❌ <b>You are not a member yet.</b>\n\n"
+                "Join the channel first and "
+                "press the button again.",
                 parse_mode="HTML",
                 reply_markup=kb.join_channel_keyboard(
                     CHANNEL_USERNAME
@@ -1311,8 +1815,9 @@ async def membership_callback(
 
     except Exception:
         await query.message.reply_text(
-            "😂 <b>Hahaha 😀 I can find you there!</b>\n\n"
-            "Join the channel first 😉",
+            "⚠️ I couldn't verify membership.\n\n"
+            "Make sure the bot is an administrator "
+            "of the Telegram channel.",
             parse_mode="HTML",
             reply_markup=kb.join_channel_keyboard(
                 CHANNEL_USERNAME
@@ -1321,7 +1826,7 @@ async def membership_callback(
 
 
 # ============================================================
-# MAIN MENU CALLBACK
+# MAIN MENU
 # ============================================================
 
 async def menu_callback(
@@ -1332,40 +1837,205 @@ async def menu_callback(
 
     await query.answer()
 
-    if await maintenance_guard(update):
+    if await maintenance_guard(
+        update
+    ):
         return
 
     action = query.data
 
     if action == "menu_movie":
         await query.message.reply_text(
-            "🎬 Send:\n"
+            "🎬 <b>Movie Search</b>\n\n"
+            "Send:\n"
             "<code>/movie Movie Name</code>",
             parse_mode="HTML",
         )
 
     elif action == "menu_tv":
         await query.message.reply_text(
-            "📺 Send:\n"
+            "📺 <b>TV Show Search</b>\n\n"
+            "Send:\n"
             "<code>/tvshow TV Show Name</code>",
             parse_mode="HTML",
         )
 
     elif action == "menu_popular":
-        await popular_cmd(update, context)
+        await popular_cmd(
+            update,
+            context,
+        )
 
     elif action == "menu_toprated":
-        await toprated_cmd(update, context)
+        await toprated_cmd(
+            update,
+            context,
+        )
 
     elif action == "menu_help":
-        await help_cmd(update, context)
+        await help_cmd(
+            update,
+            context,
+        )
 
 
 # ============================================================
-# REGISTER
+# SUPPORT / DONATION
 # ============================================================
 
-def register(app: Application):
+SUPPORT_WALLETS = {
+    "btc": (
+        "₿ Bitcoin",
+        BTC_WALLET,
+    ),
+
+    "ltc": (
+        "Ł Litecoin",
+        LTC_WALLET,
+    ),
+
+    "bnb": (
+        "🟡 BNB",
+        BNB_WALLET,
+    ),
+
+    "eth": (
+        "♦️ Ethereum",
+        ETH_WALLET,
+    ),
+
+    "usdt": (
+        "💵 USDT",
+        USDT_WALLET,
+    ),
+
+    "doge": (
+        "🐕 Dogecoin",
+        DOGE_WALLET,
+    ),
+
+    "trx": (
+        "🔺 TRON",
+        TRX_WALLET,
+    ),
+
+    "sol": (
+        "☀️ Solana",
+        SOL_WALLET,
+    ),
+}
+
+
+async def support_callback(
+    update,
+    context,
+):
+    query = update.callback_query
+
+    await query.answer()
+
+    if await maintenance_guard(
+        update
+    ):
+        return
+
+    action = query.data
+
+    # --------------------------------------------------------
+    # MAIN SUPPORT SCREEN
+    # --------------------------------------------------------
+
+    if action == "support":
+        await query.message.reply_text(
+            "❤️ <b>Support MovieBot</b>\n\n"
+            "Thank you for supporting the bot! 🙏\n\n"
+            "If you enjoy using MovieBot and "
+            "would like to support the admin, "
+            "you can donate using one of "
+            "the wallets below.\n\n"
+            "💰 <b>Choose your cryptocurrency:</b>",
+            parse_mode="HTML",
+            reply_markup=kb.support_keyboard(),
+        )
+        return
+
+    # --------------------------------------------------------
+    # BACK TO MAIN MENU
+    # --------------------------------------------------------
+
+    if action == "support_back":
+        await query.message.reply_text(
+            "🏠 <b>Main Menu</b>",
+            parse_mode="HTML",
+            reply_markup=kb.main_menu(),
+        )
+        return
+
+    # --------------------------------------------------------
+    # WALLET
+    # --------------------------------------------------------
+
+    if not action.startswith(
+        "support_"
+    ):
+        return
+
+    coin = action.replace(
+        "support_",
+        "",
+        1,
+    )
+
+    wallet_data = (
+        SUPPORT_WALLETS.get(
+            coin
+        )
+    )
+
+    if not wallet_data:
+        await query.message.reply_text(
+            "❌ Unknown cryptocurrency.",
+            reply_markup=kb.support_keyboard(),
+        )
+        return
+
+    coin_name, wallet = wallet_data
+
+    if not wallet:
+        await query.message.reply_text(
+            f"⚠️ <b>{html.escape(coin_name)}</b>\n\n"
+            "The admin has not configured a "
+            "wallet address for this cryptocurrency yet.\n\n"
+            "Please choose another option.",
+            parse_mode="HTML",
+            reply_markup=kb.support_keyboard(),
+        )
+        return
+
+    await query.message.reply_text(
+        "🙏 <b>Thank you for supporting MovieBot!</b>\n\n"
+        f"💰 <b>{html.escape(coin_name)}</b>\n\n"
+        "📋 <b>Wallet Address</b>\n"
+        f"<code>{html.escape(wallet)}</code>\n\n"
+        "👆 Tap the wallet address above to copy it.\n\n"
+        "❤️ Every contribution helps keep "
+        "the bot running. Thank you!",
+        parse_mode="HTML",
+        reply_markup=kb.support_keyboard(),
+    )
+
+
+# ============================================================
+# REGISTER USER HANDLERS
+# ============================================================
+
+def register(
+    app: Application,
+):
+
+    # --------------------------------------------------------
+    # Commands
+    # --------------------------------------------------------
 
     app.add_handler(
         CommandHandler(
@@ -1416,7 +2086,10 @@ def register(app: Application):
         )
     )
 
+    # --------------------------------------------------------
     # Membership
+    # --------------------------------------------------------
+
     app.add_handler(
         CallbackQueryHandler(
             membership_callback,
@@ -1424,7 +2097,10 @@ def register(app: Application):
         )
     )
 
+    # --------------------------------------------------------
     # Movie / TV selection
+    # --------------------------------------------------------
+
     app.add_handler(
         CallbackQueryHandler(
             select_result_callback,
@@ -1432,7 +2108,10 @@ def register(app: Application):
         )
     )
 
+    # --------------------------------------------------------
     # Search pagination
+    # --------------------------------------------------------
+
     app.add_handler(
         CallbackQueryHandler(
             results_page_callback,
@@ -1440,7 +2119,10 @@ def register(app: Application):
         )
     )
 
-    # Cancel
+    # --------------------------------------------------------
+    # Search cancel
+    # --------------------------------------------------------
+
     app.add_handler(
         CallbackQueryHandler(
             results_cancel_callback,
@@ -1448,7 +2130,10 @@ def register(app: Application):
         )
     )
 
+    # --------------------------------------------------------
     # TV seasons search
+    # --------------------------------------------------------
+
     app.add_handler(
         CallbackQueryHandler(
             season_show_callback,
@@ -1456,7 +2141,21 @@ def register(app: Application):
         )
     )
 
+    # --------------------------------------------------------
+    # Seasons back
+    # --------------------------------------------------------
+
+    app.add_handler(
+        CallbackQueryHandler(
+            seasons_back_callback,
+            pattern=r"^seasons_back$",
+        )
+    )
+
+    # --------------------------------------------------------
     # Season selection
+    # --------------------------------------------------------
+
     app.add_handler(
         CallbackQueryHandler(
             season_callback,
@@ -1464,7 +2163,10 @@ def register(app: Application):
         )
     )
 
+    # --------------------------------------------------------
     # Episode selection
+    # --------------------------------------------------------
+
     app.add_handler(
         CallbackQueryHandler(
             episode_callback,
@@ -1472,7 +2174,21 @@ def register(app: Application):
         )
     )
 
+    # --------------------------------------------------------
+    # Back to episodes
+    # --------------------------------------------------------
+
+    app.add_handler(
+        CallbackQueryHandler(
+            back_episodes_callback,
+            pattern=r"^back_episodes_\d+_\d+$",
+        )
+    )
+
+    # --------------------------------------------------------
     # Back to seasons
+    # --------------------------------------------------------
+
     app.add_handler(
         CallbackQueryHandler(
             back_seasons_callback,
@@ -1480,10 +2196,39 @@ def register(app: Application):
         )
     )
 
+    # --------------------------------------------------------
     # Main menu
+    # --------------------------------------------------------
+
     app.add_handler(
         CallbackQueryHandler(
             menu_callback,
             pattern=r"^menu_",
+        )
+    )
+
+    # --------------------------------------------------------
+    # SUPPORT
+    # --------------------------------------------------------
+    # This was missing in the previous version.
+    # It handles:
+    #
+    # support
+    # support_btc
+    # support_ltc
+    # support_bnb
+    # support_eth
+    # support_usdt
+    # support_doge
+    # support_trx
+    # support_sol
+    # support_back
+    #
+    # --------------------------------------------------------
+
+    app.add_handler(
+        CallbackQueryHandler(
+            support_callback,
+            pattern=r"^support(?:_.+)?$",
         )
     )

@@ -24,27 +24,33 @@ def main_menu():
         [
             inline_button(
                 "🎬 Movies",
-                "menu_movie"
+                "menu_movie",
             ),
             inline_button(
                 "📺 TV Shows",
-                "menu_tv"
+                "menu_tv",
+            ),
+        ],
+        [
+            inline_button(
+                "💰 Support",
+                "support",
             ),
         ],
         [
             inline_button(
                 "🌟 Popular",
-                "menu_popular"
+                "menu_popular",
             ),
             inline_button(
                 "🏆 Top Rated",
-                "menu_toprated"
+                "menu_toprated",
             ),
         ],
         [
             inline_button(
                 "📋 Help",
-                "menu_help"
+                "menu_help",
             ),
         ],
     ])
@@ -125,43 +131,43 @@ def admin_home(maintenance=False):
         [
             inline_button(
                 "🎬 Post Movie",
-                "admin_post_movie"
+                "admin_post_movie",
             ),
             inline_button(
                 "📺 Post TV Show",
-                "admin_post_tv"
+                "admin_post_tv",
             ),
         ],
         [
             inline_button(
                 "👻 Top 3 Horror",
-                "admin_horror"
+                "admin_horror",
             ),
         ],
         [
             inline_button(
                 "📊 Statistics",
-                "admin_stats"
+                "admin_stats",
             ),
             inline_button(
                 "👥 Recent Users",
-                "admin_users"
+                "admin_users",
             ),
         ],
         [
             inline_button(
                 maintenance_text,
-                "admin_maintenance"
+                "admin_maintenance",
             ),
         ],
         [
             inline_button(
                 "⚙️ Channel Settings",
-                "admin_channel"
+                "admin_channel",
             ),
             inline_button(
                 "🆔 Admin ID",
-                "admin_id"
+                "admin_id",
             ),
         ],
     ])
@@ -176,7 +182,7 @@ def back_admin():
         [
             inline_button(
                 "🔙 Back to Admin Panel",
-                "admin_home"
+                "admin_home",
             )
         ]
     ])
@@ -191,13 +197,13 @@ def channel_settings_keyboard():
         [
             inline_button(
                 "🔄 Refresh",
-                "admin_channel"
+                "admin_channel",
             )
         ],
         [
             inline_button(
                 "🔙 Back",
-                "admin_home"
+                "admin_home",
             )
         ],
     ])
@@ -212,19 +218,74 @@ def admin_post_menu():
         [
             inline_button(
                 "🎬 Post Movie",
-                "admin_post_movie"
+                "admin_post_movie",
             )
         ],
         [
             inline_button(
                 "📺 Post TV Show",
-                "admin_post_tv"
+                "admin_post_tv",
             )
         ],
         [
             inline_button(
                 "🔙 Back",
-                "admin_home"
+                "admin_home",
             )
+        ],
+    ])
+
+
+# ============================================================
+# SUPPORT / DONATION KEYBOARD
+# ============================================================
+
+def support_keyboard():
+    return InlineKeyboardMarkup([
+        [
+            inline_button(
+                "₿ Bitcoin",
+                "support_btc",
+            ),
+            inline_button(
+                "Ł Litecoin",
+                "support_ltc",
+            ),
+        ],
+        [
+            inline_button(
+                "🟡 BNB",
+                "support_bnb",
+            ),
+            inline_button(
+                "♦️ Ethereum",
+                "support_eth",
+            ),
+        ],
+        [
+            inline_button(
+                "💵 USDT",
+                "support_usdt",
+            ),
+            inline_button(
+                "🐕 Dogecoin",
+                "support_doge",
+            ),
+        ],
+        [
+            inline_button(
+                "🔺 TRON",
+                "support_trx",
+            ),
+            inline_button(
+                "☀️ Solana",
+                "support_sol",
+            ),
+        ],
+        [
+            inline_button(
+                "🔙 Back to Menu",
+                "support_back",
+            ),
         ],
     ])

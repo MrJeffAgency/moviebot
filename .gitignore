@@ -1,7 +1,8 @@
 .env
 .env.*
 !.env.example
-
+*.pyc
+*.backup
 __pycache__/
 *.py[cod]
 *.sqlite
@@ -10,3 +11,4 @@ __pycache__/
 
 .venv/
 venv/
+
