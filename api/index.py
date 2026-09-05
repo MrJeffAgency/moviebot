@@ -1,13 +1,18 @@
+import hashlib
 import html
+import hmac as _hmac
 import json
 import os
 import re
 from datetime import datetime, timezone
+from secrets import compare_digest
 
 import requests
 from flask import Flask, jsonify, request
 
 app = Flask(__name__)
+
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "").strip()
 
 BOT_TOKEN = os.getenv("BOT_TOKEN", "").strip()
 WEBHOOK_SECRET = os.getenv("TELEGRAM_WEBHOOK_SECRET", "").strip()
@@ -151,6 +156,10 @@ def get_recent_users(limit=15):
         )
         for r in rows
     ]
+
+
+def list_all_users():
+    return sorted(_users.values(), key=lambda r: r.get("last_seen") or "", reverse=True)
 
 
 def save_search(user_id, query, search_type):
@@ -1257,3 +1266,170 @@ def webhook():
 @app.route("/api/webhook", methods=["GET", "POST"])
 def webhook_aliased():
     return webhook()
+
+
+def admin_cookie_value():
+    return _hmac.new(ADMIN_PASSWORD.encode(), b"moviebot-admin", hashlib.sha256).hexdigest()
+
+
+def read_cookie(name):
+    raw = request.headers.get("Cookie", "") or ""
+    for part in raw.split(";"):
+        key, _, value = part.strip().partition("=")
+        if key == name:
+            return value
+    return ""
+
+
+def admin_authed():
+    if not ADMIN_PASSWORD:
+        return False
+    return compare_digest(read_cookie("mb_admin"), admin_cookie_value())
+
+
+@app.route("/api/admin/login", methods=["POST"])
+def admin_login():
+    body = request.get_json(silent=True) or {}
+    password = str(body.get("password") or "")
+    if not ADMIN_PASSWORD or not compare_digest(password, ADMIN_PASSWORD):
+        return jsonify(ok=False, error="Invalid password"), 401
+    resp = jsonify(ok=True)
+    resp.set_cookie(
+        "mb_admin",
+        admin_cookie_value(),
+        httponly=True,
+        samesite="Lax",
+        secure=True,
+        max_age=60 * 60 * 24 * 7,
+        path="/",
+    )
+    return resp
+
+
+@app.route("/api/admin/users", methods=["GET"])
+def admin_users():
+    if not admin_authed():
+        return jsonify(ok=False, error="Not authorized"), 401
+    load_state()
+    return jsonify(ok=True, users=list_all_users())
+
+
+@app.route("/api/admin/send", methods=["POST"])
+def admin_send():
+    if not admin_authed():
+        return jsonify(ok=False, error="Not authorized"), 401
+    body = request.get_json(silent=True) or {}
+    chat_id = str(body.get("userId") or body.get("chatId") or "").strip()
+    text = str(body.get("text") or "").strip()
+    if not chat_id:
+        return jsonify(ok=False, error="User ID is required"), 400
+    if not text:
+        return jsonify(ok=False, error="Message text is required"), 400
+    if len(text) > 4096:
+        return jsonify(ok=False, error="Message too long (max 4096)"), 400
+    try:
+        send_message(chat_id, f"💬 MovieBot Support\n\n{text}")
+        return jsonify(ok=True)
+    except Exception as exc:
+        return jsonify(ok=False, error=str(exc)), 400
+
+
+ADMIN_PAGE = """<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MovieBot Admin</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,sans-serif;background:#0b0e14;color:#e6e6e6;min-height:100vh;padding:32px 16px}
+.wrap{max-width:980px;margin:0 auto}
+h1{font-size:24px;margin-bottom:24px}
+.card{background:#131a24;border:1px solid #233043;border-radius:14px;padding:20px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+@media(max-width:720px){.grid{grid-template-columns:1fr}}
+input,textarea,button{width:100%;margin-top:8px;padding:10px 12px;border-radius:8px;border:1px solid #2c3a4f;background:#0b0e14;color:#e6e6e6;font-size:14px}
+button{background:#22c55e;color:#06220f;font-weight:700;border:none;cursor:pointer}
+button:disabled{opacity:.5}
+label{font-size:12px;color:#93a4b8}
+.row{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+.user{width:100%;text-align:left;border:1px solid #1e293b;background:#0e1520;margin-top:8px;cursor:pointer}
+.user b{display:block;font-size:14px}
+.user span{display:block;font-size:12px;color:#93a4b8}
+ul{list-style:none;max-height:540px;overflow:auto}
+.msg{font-size:13px;margin-top:10px}
+.ok{color:#22c55e}.err{color:#f87171}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>🎬 MovieBot Admin</h1>
+<div id="app"></div>
+</div>
+<script>
+const app=document.getElementById('app');
+async function j(res){const d=await res.json().catch(()=>({}));return {res,d};}
+function esc(s){return (s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+async function load(){
+  const {res,d}=await j(await fetch('/api/admin/users'));
+  if(res.status===401){return login();}
+  if(!d.ok)return login();
+  const users=d.users||[];
+  render(`
+    <div class="row"><h2 style="margin:0">Bot Users (${users.length})</h2>
+    <button style="width:auto" onclick="load()">Refresh</button></div>
+    <div class="grid">
+      <div class="card">
+        <ul>${users.length===0?'<li>No users yet.</li>':users.map(u=>`
+          <li><button class="user" onclick="pick(${u.id})">
+            <b>${esc(u.first_name||u.username||u.id)} ${u.username?('<span>@'+esc(u.username)+'</span>'):''}</b>
+            <span>ID: ${u.id} &middot; Last seen: ${new Date((u.last_seen||'').replace(' ','T')).toLocaleString()}</span>
+          </button></li>`).join('')}
+        </ul>
+      </div>
+      <div class="card">
+        <label>User / Chat ID</label>
+        <input id="uid" placeholder="Tap a user on the left">
+        <label>Message</label>
+        <textarea id="body" rows="6" placeholder="Type your message..."></textarea>
+        <button onclick="send()">Send</button>
+        <div id="out" class="msg"></div>
+      </div>
+    </div>`);
+  window.pick=id=>{document.getElementById('uid').value=id;};
+  window.send=async()=>{
+    const uid=document.getElementById('uid').value.trim();
+    const body=document.getElementById('body').value.trim();
+    const out=document.getElementById('out');
+    if(!uid||!body)return;
+    const {d}=await j(await fetch('/api/admin/send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:uid,text:body})}));
+    out.className='msg '+(d.ok?'ok':'err');
+    out.textContent=d.ok?'Message sent.':(d.error||'Failed');
+    if(d.ok)document.getElementById('body').value='';
+  };
+}
+function login(){
+  render(`
+    <div class="card" style="max-width:360px;margin:0 auto">
+      <label>Admin password</label>
+      <input id="pw" type="password" placeholder="••••••••">
+      <button onclick="doLogin()">Sign in</button>
+      <div id="out" class="msg err"></div>
+    </div>`);
+  window.doLogin=async()=>{
+    const {d}=await j(await fetch('/api/admin/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:document.getElementById('pw').value})}));
+    const out=document.getElementById('out');
+    if(!d.ok){out.textContent=d.error||'Login failed';}
+    else{load();}
+  };
+}
+function render(h){app.innerHTML=h;}
+load();
+</script>
+</body>
+</html>"""
+
+
+@app.route("/admin", methods=["GET"])
+def admin_page():
+    return ADMIN_PAGE

@@ -1,0 +1,7 @@
+{
+  "routes": [
+    { "src": "/api/webhook", "dest": "/api/index" },
+    { "src": "/admin", "dest": "/api/index" },
+    { "src": "/api/admin/.*", "dest": "/api/index" }
+  ]
+}
